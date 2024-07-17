@@ -1,0 +1,15 @@
+[package]
+name = "probably_filters"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+fasthash = "0.4.0"
+thiserror = "1.0.62"
+
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "bench_cbf"
+harness = false
