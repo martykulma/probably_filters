@@ -1,4 +1,3 @@
-use core::num;
 use fasthash::FastHasher;
 use std::{collections::HashMap, marker::PhantomData};
 use thiserror::Error;
@@ -82,7 +81,7 @@ where
             counter_bins: vec![0; num_bins],
             counter_max: calc_max_counter(&bits_per_counter),
             counters_per_bin,
-            bits_per_counter: bits_per_counter,
+            bits_per_counter,
             n_hashes: num_hashes,
             _hasher: PhantomData,
         })
@@ -116,7 +115,7 @@ where
     {
         let bytes: &[u8] = entry.into();
         let mut updates = HashMap::<usize, usize>::new();
-        for mut h in (0..self.n_hashes).map(|seed| T::with_seed(seed.into())) {
+        for mut h in (0..self.n_hashes).map(|seed| T::with_seed(seed)) {
             h.write(bytes);
             let hash = h.finish();
             let (bin, bitshift, counter_mask) = self.offsets(&(hash as usize));
@@ -194,16 +193,7 @@ where
     where
         I: Into<&'a [u8]>,
     {
-        let bytes: &[u8] = entry.into();
-        (0..self.n_hashes)
-            .map(|seed| {
-                let mut h = T::with_seed(seed.into());
-                h.write(bytes);
-                let hash = h.finish();
-                let (bin, bitshift, counter_mask) = self.offsets(&(hash as usize));
-                (counter_mask & self.counter_bins[bin]) >> bitshift
-            })
-            .all(|v| v > 0)
+        self.iterator_over_hashes(entry).all(|v| v > 0)
     }
 
     /// Returns an estimate of the number of time entry exists in the filter.
@@ -216,17 +206,21 @@ where
     where
         I: Into<&'a [u8]>,
     {
+        self.iterator_over_hashes(entry).min().unwrap_or_default()
+    }
+
+    fn iterator_over_hashes<'a, 'b: 'a, I>(&'a self, entry: I) -> impl Iterator<Item = usize> + 'a
+    where
+        I: Into<&'b [u8]>,
+    {
         let bytes: &[u8] = entry.into();
-        (0..self.n_hashes)
-            .map(|seed| {
-                let mut h = T::with_seed(seed.into());
-                h.write(bytes);
-                let hash = h.finish();
-                let (bin, bitshift, counter_mask) = self.offsets(&(hash as usize));
-                (counter_mask & self.counter_bins[bin]) >> bitshift
-            })
-            .min()
-            .unwrap_or_default()
+        (0..self.n_hashes).map(|seed| {
+            let mut h = T::with_seed(seed);
+            h.write(bytes);
+            let hash = h.finish();
+            let (bin, bitshift, counter_mask) = self.offsets(&(hash as usize));
+            (counter_mask & self.counter_bins[bin]) >> bitshift
+        })
     }
 }
 
