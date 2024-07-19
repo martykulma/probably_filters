@@ -109,14 +109,13 @@ where
     /// once coutners have reached their max, they will no longer increase.
     ///
     /// This returns true if the entry was added or false if the counter was saturated (hence not added).
-    pub fn add<'a, I>(&mut self, entry: I) -> bool
+    pub fn add<I>(&mut self, entry: I) -> bool
     where
-        I: Into<&'a [u8]>,
+        I: AsRef<[u8]>,
     {
-        let bytes: &[u8] = entry.into();
         let mut updates = HashMap::<usize, usize>::new();
         for mut h in (0..self.n_hashes).map(|seed| T::with_seed(seed)) {
-            h.write(bytes);
+            h.write(entry.as_ref());
             let hash = h.finish();
             let (bin, bitshift, counter_mask) = self.offsets(&(hash as usize));
             let mut counter = updates.get_mut(&bin).map_or_else(
@@ -151,15 +150,14 @@ where
     /// This method uses a saturating subtraction, so counters do not wrap.
     ///
     /// This method returns false if the entry was not found (hence not removed), or true if it was.
-    pub fn remove<'a, I>(&mut self, entry: I) -> bool
+    pub fn remove<I>(&mut self, entry: I) -> bool
     where
-        I: Into<&'a [u8]>,
+        I: AsRef<[u8]>,
     {
-        let bytes: &[u8] = entry.into();
         let mut updates = HashMap::<usize, usize>::new();
         for seed in 0..self.n_hashes {
             let mut h = T::with_seed(seed);
-            h.write(bytes);
+            h.write(entry.as_ref());
             let hash = h.finish();
             let (bin, bitshift, counter_mask) = self.offsets(&(hash as usize));
             let mut counter = updates.get_mut(&bin).map_or_else(
@@ -189,11 +187,11 @@ where
     }
 
     /// Determine if filter contains the provided entry.
-    pub fn contains<'a, I>(&self, entry: I) -> bool
+    pub fn contains<I>(&self, entry: I) -> bool
     where
-        I: Into<&'a [u8]>,
+        I: AsRef<[u8]>,
     {
-        self.iterator_over_hashes(entry).all(|v| v > 0)
+        self.iterator_over_hashes(entry.as_ref()).all(|v| v > 0)
     }
 
     /// Returns an estimate of the number of time entry exists in the filter.
@@ -202,21 +200,22 @@ where
     /// Counters support a maximum value of 255. If a key is added more than 255 times, it will
     /// increase the error rate of this filter and the estimate.  This estimate is also subject
     /// to the false positive probability
-    pub fn estimate<'a, I>(&self, entry: I) -> usize
+    pub fn estimate<I>(&self, entry: I) -> usize
     where
-        I: Into<&'a [u8]>,
+        I: AsRef<[u8]>,
     {
-        self.iterator_over_hashes(entry).min().unwrap_or_default()
+        self.iterator_over_hashes(entry.as_ref())
+            .min()
+            .unwrap_or_default()
     }
 
-    fn iterator_over_hashes<'a, 'b: 'a, I>(&'a self, entry: I) -> impl Iterator<Item = usize> + 'a
-    where
-        I: Into<&'b [u8]>,
-    {
-        let bytes: &[u8] = entry.into();
+    fn iterator_over_hashes<'a, 'b: 'a>(
+        &'a self,
+        key: &'b [u8],
+    ) -> impl Iterator<Item = usize> + 'a {
         (0..self.n_hashes).map(|seed| {
             let mut h = T::with_seed(seed);
-            h.write(bytes);
+            h.write(key);
             let hash = h.finish();
             let (bin, bitshift, counter_mask) = self.offsets(&(hash as usize));
             (counter_mask & self.counter_bins[bin]) >> bitshift
