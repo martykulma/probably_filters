@@ -1,20 +1,20 @@
-use probably_filters::CountingBloomFilter;
 use criterion::{criterion_group, criterion_main, Criterion};
 use fasthash::metro;
+use probably_filters::CuckooFilter;
 
-pub fn bench_add_entries(c: &mut Criterion) {
-    let mut cbf = CountingBloomFilter::<metro::Hasher64_1>::new(250_000, 4).unwrap();
+pub fn bench_add(c: &mut Criterion) {
+    let mut cbf = CuckooFilter::<metro::Hasher64_1>::new(500_000);
     c.bench_function("bench_add_entries", |b| {
         b.iter(|| {
             std::hint::black_box(for i in 0..1_000_000_u64 {
-                cbf.add(&i.to_ne_bytes()[..]);
+                cbf.add(i.to_ne_bytes().as_ref());
             });
         })
     });
 }
 
 pub fn bench_contains(c: &mut Criterion) {
-    let mut cbf = CountingBloomFilter::<metro::Hasher64_1>::new(250_000, 4).unwrap();
+    let mut cbf = CuckooFilter::<metro::Hasher64_1>::new(500_000);
     for i in 0..1_000_000_u64 {
         cbf.add(&i.to_ne_bytes()[..]);
     }
@@ -34,5 +34,5 @@ pub fn bench_contains(c: &mut Criterion) {
     });
 }
 
-criterion_group!(bench_cbf, bench_add_entries, bench_contains);
-criterion_main!(bench_cbf);
+criterion_group!(bench_cuckoo, bench_add, bench_contains,);
+criterion_main!(bench_cuckoo);
